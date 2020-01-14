@@ -6,7 +6,7 @@
 
 import numpy as np
 import random
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 import copy
 from scipy.stats import bernoulli
 
