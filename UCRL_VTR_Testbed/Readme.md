@@ -1,4 +1,4 @@
-Readme
+# Readme
 
 run_agent.py - this file runs both RLSVI and UCRL_VTR in both the RiverSwim and DeepSea environments. 
 It outputs a LogLog plot of the cumlative reward of both RLSVI and UCRL_VTR. As of right now, UCRL_VTR has a hard
