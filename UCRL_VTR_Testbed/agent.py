@@ -158,10 +158,11 @@ class UCRL_VTR(object):
         # In the tabular setting the basis models is just the dxd identity matrix, see Appendix B
         self.P_basis = np.identity(self.d)
         #Our Q-values are initialized as a 2d numpy array, will eventually convert to a dictionary
-        self.Q = [np.zeros((self.env.nState,self.env.nAction)) for i in range(self.env.epLen)]
+        self.Q = {(h,s,a): 0.0 for h in range(self.env.epLen) for s in self.env.states.keys() \
+                   for a in range(self.env.nAction)}
         #Our State Value function is initialized as a 1d numpy error, will eventually convert to a dictionary
-        self.V = [np.zeros(self.env.nState) for i in range(self.env.epLen+1)] # self.V[env.epLen] stays zero
-        self.create_value_functions()
+        self.V = {(h,s): 0.0 for s in self.env.states.keys() for h in range(env.epLen + 1)} # self.V[env.epLen] stays zero
+        #self.create_value_functions()
         #The index of each (s,a,s') tuple, see Appendix B
         self.sigma = {}
         self.state_idx = {}
@@ -185,21 +186,7 @@ class UCRL_VTR(object):
 #         #Initialize the predicted value of the basis models, see equation 3
 #         self.X = np.zeros((env.epLen,self.d))
 
-    def create_value_functions(self):
-        Q = {}
-        q = {}
-        V = {}
-        v = {}
-        for h in range(self.env.epLen):
-            for s in self.env.states.keys():
-                v[(s)] = 0
-                for a in range(self.env.nAction):
-                    q[(s,a)] = 0
-            Q[h] = q
-            V[h] = v
-        V[h+1] = v
-        #self.V = V.copy()
-        #self.Q = Q.copy()
+
 
 
     def feature_vector(self,s,a,h):
@@ -214,7 +201,7 @@ class UCRL_VTR(object):
         sums = np.zeros(self.d)
         for s_ in self.env.states.keys():
             #print(s,s_)
-            sums += self.V[h+1][self.state_idx[s_]] * self.P_basis[self.sigma[(s,a,s_)]]
+            sums += self.V[h+1,s_] * self.P_basis[self.sigma[(s,a,s_)]]
         return sums
 
     def proj(self, x, lo, hi):
@@ -236,9 +223,9 @@ class UCRL_VTR(object):
         # Alex's code: X = self.X[h,:]
         # Suggested code:
         X = self.feature_vector(s,a,h)
-        self.Q[h][self.state_idx[s],a] = self.proj(self.env.R[(s,a)][0] + np.dot(X,self.theta) + self.Beta(k) \
+        self.Q[h,s,a] = self.proj(self.env.R[(s,a)][0] + np.dot(X,self.theta) + self.Beta(k) \
             * np.sqrt(np.dot(np.dot(np.transpose(X),np.linalg.inv(self.M)),X)), 0, self.env.epLen )
-        self.V[h][self.state_idx[s]] = max(self.Q[h][self.state_idx[s],:])
+        self.V[h,s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
 
     def update_Qend(self,k):
         '''
@@ -254,7 +241,7 @@ class UCRL_VTR(object):
                     # Alex's code: X = self.X[h,:]
                     # Suggested code:
                     self.update_Q(s,a,k,h)
-                self.V[h][self.state_idx[s]] = max(self.Q[h][self.state_idx[s],:])
+                self.V[h,s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
 
     def update_stat(self,s,a,s_,h):
         '''
@@ -270,7 +257,7 @@ class UCRL_VTR(object):
 #         self.X[h,:] = self.feature_vector(s,a,h) # do not need to store this
         X = self.feature_vector(s,a,h)
         #Step 11
-        y = self.V[h+1][self.state_idx[s_]]
+        y = self.V[h+1,s_]
 #         if s_ != None:
 #             y = self.V[h+1][s_]
 #         else:
@@ -299,7 +286,7 @@ class UCRL_VTR(object):
         '''
         #step 8
         if k > self.K/self.random_explore:
-            return self.env.argmax(self.Q[h][self.state_idx[s],:])
+            return self.env.argmax(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
         else:
             return bernoulli.rvs(0.5) #A random policy for testing
 
@@ -356,3 +343,115 @@ class UCRL_VTR(object):
 
     def name(self):
         return 'UCRL_VTR'
+
+class UCBVI(object):
+    def __init__(self,env,K):
+        self.env = env
+        self.K = K
+        self.delta = 1/self.K
+        self.buffer = {h: [] for h in range(self.env.epLen)}
+        self.Nxay = {(s,a,s_): 0.0 for s in self.env.states.keys() for a in range(self.env.nAction) \
+                     for s_ in self.env.states.keys()}
+        self.Nxa = {(s,a): 0.0 for s in self.env.states.keys() for a in range(self.env.nAction)}
+        self.N_ = {(h,s,a): 0.0 for h in range(self.env.epLen+1) for s in self.env.states.keys() \
+                   for a in range(self.env.nAction)}
+        self.P = {(s,a,s_): 0.0 for s in self.env.states.keys() for a in \
+                  range(self.env.nAction) for s_ in self.env.states.keys()}
+        self.Q = {(h,s,a): self.env.epLen+1 for h in range(self.env.epLen) for s in self.env.states.keys() \
+                   for a in range(self.env.nAction)}
+
+
+    def update_buffer(self,s,a,r,s_,h):
+        self.buffer[h].append((s,a,r,s_,h))
+
+    def act(self,s,h):
+        x = np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)])
+        return self.env.argmax(x)
+
+    def learn(self,k):
+        self.update_counts(k)
+        self.update_probability_transition()
+        self.update_value_functions(k)
+
+    def update_probability_transition(self):
+        for s in self.env.states.keys():
+            for a in range(self.env.nAction):
+                if self.Nxa[(s,a)] > 0:
+                    for s_ in self.env.states.keys():
+                        self.P[(s,a,s_)] = (self.Nxay[(s,a,s_)]) / (self.Nxa[(s,a)])
+
+    def update_counts(self,k):
+        for d in self.buffer.values():
+            #print(d)
+            s,a,r,s_,h = d[k][0],d[k][1],d[k][2],d[k][3],d[k][4]
+            if s_ != None:
+                self.Nxay[(s,a,s_)] += 1
+            self.Nxa[(s,a)] += 1
+            self.N_[(h,s,a)] += 1
+
+    def update_value_functions(self,k):
+        V = {(h,s): 0.0 for s in self.env.states.keys() for h in range(env.epLen + 1)}
+        for h in range(self.env.epLen-1,-1,-1):
+            for s in self.env.states.keys():
+                for a in range(self.env.nAction):
+                    if self.Nxa[(s,a)] > 0:
+                        #bonus = self.bonus_1(s,a)
+                        PV = self.multiplyDictionaries(s,a,h,V)
+                        bonus = self.bonus_2(s,a,h,V)
+                        self.Q[(h,s,a)] = min(min(self.Q[(h,s,a)], self.env.epLen), self.env.R[(s,a)][0] + PV + bonus)
+                    else:
+                        self.Q[(h,s,a)] = self.env.epLen
+                V[(h,s)] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
+
+
+    def bonus_1(self,s,a):
+        T = self.K * self.env.epLen
+        L = np.log(5 * self.env.nState * self.env.nAction  * T / self.delta)
+        return 7 * env.epLen * L * np.sqrt(1 / self.Nxa[(s,a)])
+
+    def bonus_2(self,s,a,h,V):
+        temp = []
+        sums = 0.0
+        T = self.K * self.env.epLen
+        L = np.log(5 * self.env.nState * self.env.nAction  * T / self.delta)
+        for s_ in self.env.states.keys():
+            c = V[(h+1,s_)] * self.P[(s,a,s_)]
+            temp.append(c)
+            min1 = pow(100,2)*pow(self.env.epLen,3) * pow(self.env.nState,2)*self.env.nAction*L*L \
+                /max(self.N_[(h+1,s_,a)],0.001)
+            sums += self.P[(s,a,s_)] * min(min1,self.env.epLen)
+        var = np.var(temp)
+        #print(var)
+        first = np.sqrt(8*L*var/self.Nxa[(s,a)])
+        second = 14*self.env.epLen*L/(3*self.Nxa[(s,a)])
+        third = np.sqrt(8*sums/self.Nxa[(s,a)])
+        return first + second + third
+
+    def multiplyDictionaries(self,s,a,h,V):
+        sums = 0.0
+        for s_ in self.env.states.keys():
+            sums += V[(h+1,s_)] * self.P[(s,a,s_)]
+        return sums
+
+    def name(self):
+        return 'UCBVI'
+
+    def run(self):
+        R = []
+        reward = 0.0
+        for k in tqdm(range(K)):
+            env.reset()
+            done = 0
+            while done != 1:
+                s = env.state
+                h = env.timestep
+                a = agent.act(s,h)
+                r,s_,done = env.advance(a)
+                reward += r
+                if done != 1:
+                    agent.update_buffer(s,a,r,s_,h)
+                else:
+                    agent.update_buffer(s,a,r,s_,h)
+            agent.learn(k)
+            R.append(reward)
+        return R
