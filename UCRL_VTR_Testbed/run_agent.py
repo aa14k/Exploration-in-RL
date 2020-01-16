@@ -7,7 +7,7 @@ import copy
 import matplotlib.pyplot as plt
 
 from environments import make_riverSwim, deep_sea, TabularMDP
-from agent import RLSVI, UCRL_VTR
+from agent import RLSVI, UCRL_VTR, UCBVI, PSRL
 
 env = make_riverSwim(epLen = 20, nState = 4)
 K = 600
