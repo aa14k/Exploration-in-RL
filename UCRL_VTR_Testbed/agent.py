@@ -455,3 +455,88 @@ class UCBVI(object):
             agent.learn(k)
             R.append(reward)
         return R
+
+class LSVI_UCB(object):
+    def __init__(self,env,K,c):
+        self.env = env
+        self.K = K
+        self.d = self.env.nState * self.env.nAction
+        self.c = c
+        self.p = 10/self.K
+        self.lam = 1.0
+        self.Lam = [(self.lam*np.identity(self.d)) for h in range(env.epLen)]
+        self.phi = np.identity(self.d)
+        self.Q = {(h,s,a): 0.0 for h in range(self.env.epLen+1) for s in self.env.states.keys() \
+                   for a in range(self.env.nAction)}
+        self.w = [np.zeros(self.d) for h in range(env.epLen)]
+        self.wsum = [np.zeros(self.d) for h in range(env.epLen)]
+        self.buffer = {h: [] for h in range(self.env.epLen)}
+        self.sigma = {}
+        self.createSigma()
+
+    def learn(self,s,a,r,s_,h):
+        self.Lam[h] += np.outer(self.phi[self.sigma[s,a]],self.phi[self.sigma[s,a]])
+        self.wsum[h] += self.phi[self.sigma[s,a]] * (r + \
+                                max(np.array([self.Q[(h+1,s_,a_)] for a_ in range(self.env.nAction)])))
+        self.w[h] = np.matmul(np.linalg.inv(self.Lam[h]),self.wsum[h])
+
+
+    def update_Q(self):
+        for h in range(env.epLen-1,-1,-1):
+            for s in self.env.states.keys():
+                for a in range(env.nAction):
+                    min1 = np.dot(self.w[h],self.phi[self.sigma[s,a]]) + self.Beta()* \
+                                  np.sqrt(np.dot(np.dot(self.phi[self.sigma[s,a]].T,np.linalg.inv(self.Lam[h])) \
+                                                  ,self.phi[self.sigma[s,a]]))
+                    min2 = self.env.epLen
+                    self.Q[h,s,a] = self.proj(min1,0,self.env.epLen)
+
+    def Beta(self,k):
+
+        first = np.sqrt(self.lam)*self.c
+        #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
+        second = np.sqrt(2*np.log(1/self.p) + np.log(k*(np.linalg.det(self.Lam[h])) / (pow(self.lam,self.d))))
+        return first + second
+
+
+        #itoa = np.log(2*self.d*self.K*self.env.epLen/self.p)
+        #return self.c*self.d*self.env.epLen*np.sqrt(itoa)
+
+    def createSigma(self):
+        '''
+        A simple function that creates sigma according to Appendix B.
+        Here sigma is a dictionary who inputs is a tuple (s,a,s') and stores
+        the interger index to be used in our basis model P.
+        '''
+        i = 0
+        for s in self.env.states.keys():
+            for a in range(env.nAction):
+                self.sigma[(s,a)] = int(i)
+                i += 1
+
+    def act(self,s,h):
+        x = np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)])
+        return self.env.argmax(x)
+
+    def proj(self,x, lo, hi):
+        return max(min(x,hi),lo)
+
+    def name(self):
+        return 'LSVI-UCB'
+
+    def run(self):
+        R = 0
+        Rvec = []
+        for k in tqdm(range(1,K+1)):
+            self.env.reset()
+            done = 0
+            while done != 1:
+                s = self.env.state
+                h = self.env.timestep
+                a = self.act(s,h)
+                r,s_,done = self.env.advance(a)
+                R+=r
+                self.learn(s,a,r,s_,h)
+            Rvec.append(R)
+            self.update_Q()
+        return Rvec
