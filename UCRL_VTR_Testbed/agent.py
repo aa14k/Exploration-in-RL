@@ -182,7 +182,8 @@ class UCRL_VTR(object):
         #See Step 3
         self.delta = 1/self.K
         #m_2 >= the 2-norm of theta_star, see Bandit Algorithms Theorem 20.5
-        self.m_2 = 3.0
+        self.error()
+        self.m_2 = np.linalg.norm(self.true_p) + 0.1
 #         #Initialize the predicted value of the basis models, see equation 3
 #         self.X = np.zeros((env.epLen,self.d))
 
@@ -224,7 +225,7 @@ class UCRL_VTR(object):
         # Suggested code:
         X = self.feature_vector(s,a,h)
         self.Q[h,s,a] = self.proj(self.env.R[(s,a)][0] + np.dot(X,self.theta) + self.Beta(k) \
-            * np.sqrt(np.dot(np.dot(np.transpose(X),np.linalg.inv(self.M)),X)), 0, self.env.epLen )
+            * np.sqrt(np.dot(np.dot(np.transpose(X),self.Minv),X)), 0, self.env.epLen )
         self.V[h,s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
 
     def update_Qend(self,k):
@@ -264,6 +265,8 @@ class UCRL_VTR(object):
 #             y = 0.0
         #Step 12
         self.M = self.M + np.outer(X,X)
+        self.Minv = self.Minv - np.dot((np.outer(np.dot(self.Minv,X),X)),self.Minv) / \
+                    (1 + np.dot(np.dot(X,self.Minv),X))
         #Step 13
         self.w = self.w + y*X
 
@@ -274,7 +277,7 @@ class UCRL_VTR(object):
         '''
         #Step 15
         #print(self.M)
-        self.theta = np.matmul(np.linalg.inv(self.M),self.w)
+        self.theta = np.matmul(self.Minv,self.w)
 
     def act(self,s,h,k):
         '''
@@ -285,10 +288,11 @@ class UCRL_VTR(object):
             h - the current timestep within the episode
         '''
         #step 8
-        if k > self.K/self.random_explore:
+        if k > self.K /self.random_explore:
+            #print (max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)])))
             return self.env.argmax(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
         else:
-            return bernoulli.rvs(0.5) #A random policy for testing
+            return bernoulli.rvs(0.9) #A random policy for testing
 
     def createIdx(self):
         '''
@@ -318,8 +322,10 @@ class UCRL_VTR(object):
 
         #Confidence bound from Chapter 20 of the Bandit Algorithms book, see Theorem 20.5.
         first = np.sqrt(self.lam)*self.m_2
+        (sign, logdet) = np.linalg.slogdet(self.M)
         #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
-        second = np.sqrt(2*np.log(1/self.delta) + np.log(k*min(np.linalg.det(self.M),pow(10,10)) / (pow(self.lam,self.d))))
+        det = sign * logdet
+        second = np.sqrt(2*np.log(1/self.delta) + np.log(k) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d)))
         return first + second
 
     def run(self):
@@ -334,7 +340,6 @@ class UCRL_VTR(object):
                 a = self.act(s,h,k)
                 r,s_,done = self.env.advance(a)
                 reward += r
-                #count[s,s_] += 1
                 self.update_stat(s,a,s_,h)
             self.update_param()
             self.update_Qend(k)
@@ -343,6 +348,13 @@ class UCRL_VTR(object):
 
     def name(self):
         return 'UCRL_VTR'
+
+    def error(self):
+        self.true_p = []
+        for values in self.env.P.values():
+            for value in values:
+                self.true_p.append(value)
+        print('The 2-norm of (P_true - theta_star) is:',np.linalg.norm(self.true_p-self.theta))
 
 class UCBVI(object):
     def __init__(self,env,K):
@@ -495,7 +507,9 @@ class LSVI_UCB(object):
 
         first = np.sqrt(self.lam)*self.c
         #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
-        second = np.sqrt(2*np.log(1/self.p) + np.log(k*min(np.linalg.det(self.Lam[h]),pow(10,10)) / (pow(self.lam,self.d))))
+        (sign, logdet) = np.linalg.slogdet(self.Lam[h])
+        det = sign * logdet
+        second = np.sqrt(2*np.log(1/self.p) + np.log(k) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d)))
         return first + second
 
 
