@@ -481,17 +481,17 @@ class LSVI_UCB(object):
         self.w[h] = np.matmul(np.linalg.inv(self.Lam[h]),self.wsum[h])
 
 
-    def update_Q(self):
+    def update_Q(self,k):
         for h in range(env.epLen-1,-1,-1):
             for s in self.env.states.keys():
                 for a in range(env.nAction):
-                    min1 = np.dot(self.w[h],self.phi[self.sigma[s,a]]) + self.Beta()* \
+                    min1 = np.dot(self.w[h],self.phi[self.sigma[s,a]]) + self.Beta(h,k)* \
                                   np.sqrt(np.dot(np.dot(self.phi[self.sigma[s,a]].T,np.linalg.inv(self.Lam[h])) \
                                                   ,self.phi[self.sigma[s,a]]))
                     min2 = self.env.epLen
                     self.Q[h,s,a] = self.proj(min1,0,self.env.epLen)
 
-    def Beta(self,k):
+    def Beta(self,h,k):
 
         first = np.sqrt(self.lam)*self.c
         #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
@@ -527,7 +527,7 @@ class LSVI_UCB(object):
     def run(self):
         R = 0
         Rvec = []
-        for k in tqdm(range(1,K+1)):
+        for k in tqdm(range(1,self.K+1)):
             self.env.reset()
             done = 0
             while done != 1:
@@ -538,5 +538,5 @@ class LSVI_UCB(object):
                 R+=r
                 self.learn(s,a,r,s_,h)
             Rvec.append(R)
-            self.update_Q()
+            self.update_Q(k)
         return Rvec
