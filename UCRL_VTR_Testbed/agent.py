@@ -319,7 +319,7 @@ class UCRL_VTR(object):
         #Confidence bound from Chapter 20 of the Bandit Algorithms book, see Theorem 20.5.
         first = np.sqrt(self.lam)*self.m_2
         #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
-        second = np.sqrt(2*np.log(1/self.delta) + np.log(k*(np.linalg.det(self.M)) / (pow(self.lam,self.d))))
+        second = np.sqrt(2*np.log(1/self.delta) + np.log(k*min(np.linalg.det(self.M),pow(10,10)) / (pow(self.lam,self.d))))
         return first + second
 
     def run(self):
@@ -482,9 +482,9 @@ class LSVI_UCB(object):
 
 
     def update_Q(self,k):
-        for h in range(env.epLen-1,-1,-1):
+        for h in range(self.env.epLen-1,-1,-1):
             for s in self.env.states.keys():
-                for a in range(env.nAction):
+                for a in range(self.env.nAction):
                     min1 = np.dot(self.w[h],self.phi[self.sigma[s,a]]) + self.Beta(h,k)* \
                                   np.sqrt(np.dot(np.dot(self.phi[self.sigma[s,a]].T,np.linalg.inv(self.Lam[h])) \
                                                   ,self.phi[self.sigma[s,a]]))
@@ -495,7 +495,7 @@ class LSVI_UCB(object):
 
         first = np.sqrt(self.lam)*self.c
         #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
-        second = np.sqrt(2*np.log(1/self.p) + np.log(k*(np.linalg.det(self.Lam[h])) / (pow(self.lam,self.d))))
+        second = np.sqrt(2*np.log(1/self.p) + np.log(k*min(np.linalg.det(self.Lam[h]),pow(10,10)) / (pow(self.lam,self.d))))
         return first + second
 
 
@@ -510,7 +510,7 @@ class LSVI_UCB(object):
         '''
         i = 0
         for s in self.env.states.keys():
-            for a in range(env.nAction):
+            for a in range(self.env.nAction):
                 self.sigma[(s,a)] = int(i)
                 i += 1
 
@@ -539,4 +539,27 @@ class LSVI_UCB(object):
                 self.learn(s,a,r,s_,h)
             Rvec.append(R)
             self.update_Q(k)
+        return Rvec
+
+class Optimal_Agent(object):
+    def __init__(self,env,a,K):
+        self.env = env
+        self.a = a
+        self.K = K
+
+    def name(self):
+        return 'Optimal_Policy'
+
+    def run(self):
+        R = 0
+        Rvec = []
+        for k in tqdm(range(1,self.K+1)):
+            self.env.reset()
+            done = 0
+            while done != 1:
+                s = self.env.state
+                h = self.env.timestep
+                r,s_,done = self.env.advance(self.a)
+                R+=r
+            Rvec.append(R)
         return Rvec
