@@ -182,8 +182,9 @@ class UCRL_VTR(object):
         #See Step 3
         self.delta = 1/self.K
         #m_2 >= the 2-norm of theta_star, see Bandit Algorithms Theorem 20.5
-        self.error()
-        self.m_2 = np.linalg.norm(self.true_p) + 0.1
+        #self.error()
+        #self.m_2 = np.linalg.norm(self.true_p) + 0.1
+        self.m_2 = 5.5
 #         #Initialize the predicted value of the basis models, see equation 3
 #         self.X = np.zeros((env.epLen,self.d))
 
@@ -349,12 +350,12 @@ class UCRL_VTR(object):
     def name(self):
         return 'UCRL_VTR'
 
-    def error(self):
-        self.true_p = []
-        for values in self.env.P.values():
-            for value in values:
-                self.true_p.append(value)
-        print('The 2-norm of (P_true - theta_star) is:',np.linalg.norm(self.true_p-self.theta))
+    #def error(self):
+    #    self.true_p = []
+    #    for values in self.env.P.values():
+    #        for value in values:
+    #            self.true_p.append(value)
+    #    print('The 2-norm of (P_true - theta_star) is:',np.linalg.norm(self.true_p-self.theta))
 
 class UCBVI(object):
     def __init__(self,env,K):
@@ -575,5 +576,143 @@ class Optimal_Agent(object):
                 h = self.env.timestep
                 r,s_,done = self.env.advance(self.a)
                 R+=r
+            Rvec.append(R)
+        return Rvec
+
+class UC_MatrixRL(object):
+    def __init__(self,env,N):
+        self.env = env
+        #See Step 3 of Algorithm 1
+        self.N = N
+        #The dimensionality of phi(s,a), see Step 2 or Assumption 1
+        self.d1 = self.env.nState * self.env.nAction
+        #The dimensionality of psi(s'), see Step 2 or Assumption 1
+        self.d2 = self.env.nState
+        #Step 2
+        self.features_state_action = {(s,a): np.zeros(self.d1) for s in self.env.states.keys() for a in range(self.env.nAction)}
+        #Step 3
+        self.features_next_state = {(s): np.zeros(self.d2) for s in self.env.states.keys()}
+        # A hack for using numpy's linear algebra functions in Step 4
+        self.features_next_state_mat = np.identity(self.d2)
+        # Creates the Identity Matrix for a dictionary
+        self.createIdentity()
+        # Initialize our Q matrix
+        self.Q = {(h,s,a): 0.0 for h in range(self.env.epLen) for s in self.env.states.keys() \
+                   for a in range(self.env.nAction)}
+        #Step 4
+        self.A = np.identity(self.d1)
+        #For use in the Sherman-Morrison Update
+        self.Ainv = np.linalg.inv(self.A)
+        #Step 4
+        self.M = np.zeros((self.d1,self.d2))
+        #See Assumptions 2,2' and Theorem 1, this equals 1 in the tabular case
+        self.C_phi = 1.0
+        # See Assumption 2'(Stronger Feature Regularity), and consider the case when v_1 = v_2 = ....
+        self.C_psi = np.sqrt(env.nState)
+        # See Theorem 1
+        self.C_M = 1.0
+        # See Theorem 1
+        self.C_psi_ = 1.0
+        # This value scales our confidence interval, must be > 0
+        self.c = 1.0
+        # For use in updating M_n, see Step 13 and Eqn (2)
+        self.sums = np.zeros((self.d1,self.d2))
+        #Creates K_psi, see Section 3.1: Estimating the core matrix.
+        self.createK()
+
+    def createK(self):
+        '''
+        A function that creates K_psi and (K_psi)^-1 for use in the Sherman-Morrison Update
+        See Section 3.1: Estimating the core matrix
+        '''
+        self.K = np.zeros((self.d2,self.d2))
+        for s_ in self.env.states.keys():
+            self.K = self.K + np.outer(self.features_next_state[s_],self.features_next_state[s_])
+        self.Kinv = np.linalg.inv(self.K)
+
+    def act(self,s,h):
+        '''
+        A function that returns the argmax of Q given the state and timestep
+        '''
+        return self.env.argmax(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
+
+    def createIdentity(self):
+        '''
+            A function that creates the Identity Matrix for a Dictionary
+        '''
+        i = 0
+        for key in self.features_state_action.keys():
+            self.features_state_action[key][i] = 1
+            i += 1
+        j = 0
+        for key in self.features_next_state.keys():
+            self.features_next_state[key][j] = 1
+            j += 1
+
+    def proj(self, x, lo, hi):
+        '''Projects the value of x into the [lo,hi] interval'''
+        return max(min(x,hi),lo)
+
+    def compute_Q(self,n):
+        '''
+        A function that computes the Optimisic Q-Values, see step 6 and Equations 4,8.
+        '''
+        Q = {(h,s,a): 0.0 for h in range(self.env.epLen) for s in self.env.states.keys() \
+                   for a in range(self.env.nAction)}
+        V = np.zeros((env.epLen+1,env.nState))
+        for h in range(self.env.epLen-1,-1,-1):
+            for s in self.env.states.keys():
+                for a in range(self.env.nAction):
+                    r = env.R[s,a][0]
+
+                    value = np.dot(np.matmul(np.dot(self.features_state_action[s,a].T,self.M),\
+                            self.features_next_state_mat),V[h+1,:])
+
+                    bonus = 2 * self.C_psi * np.sqrt(self.Beta(n)) * np.dot(\
+                            np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a])
+
+                    Q[h,s,a] = self.proj(r+value+bonus,0,env.epLen)
+                V[h,s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
+        self.Q = Q.copy()
+
+    def Beta(self,n):
+        '''
+        A function that computes Beta under the Assumption Theorem 2 holds, see equation 8
+        '''
+        first = self.c*(self.C_M * self.C_psi_ ** 2)
+        second = np.log(n*self.env.epLen*self.C_phi)*self.d1
+        return first * second
+
+    def update_core_matrix(self,s,a,s_):
+        '''
+        A function that performs step 12 and 13.
+        '''
+        self.A = self.A + np.outer(self.features_state_action[s,a],self.features_state_action[s,a])
+
+        self.Ainv = self.Ainv - np.dot((np.outer(np.dot(self.Ainv,self.features_state_action[s,a]) \
+                 ,self.features_state_action[s,a])),self.Ainv) / \
+                    (1 + np.dot(np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a]))
+
+        self.sums = self.sums + np.outer(self.features_state_action[s,a],self.features_next_state[s_])
+
+        self.M = np.matmul(np.matmul(self.Ainv,self.sums),self.Kinv)
+
+    def name(self):
+        return 'UC_MatrixRL'
+
+    def run(self):
+        R = 0
+        Rvec = []
+        for n in tqdm(range(1,self.N+1)):
+            self.env.reset()
+            done = 0
+            self.compute_Q(n)
+            while not done:
+                s = self.env.state
+                h = self.env.timestep
+                a = self.act(s,h)
+                r,s_,done = self.env.advance(a)
+                R += r
+                self.update_core_matrix(s,a,s_)
             Rvec.append(R)
         return Rvec
