@@ -26,7 +26,7 @@ class RLSVI(object):
         return self.action_set[argmax_list[np.random.randint(argmax_list.size)]]
 
     def name(self):
-        return 'RLSVI'
+        return 'Running: RLSVI'
 
     def act(self,s):
         x = [self.Q[(s,a)] for a in range(self.env.nAction)]
@@ -348,7 +348,7 @@ class UCRL_VTR(object):
         return R
 
     def name(self):
-        return 'UCRL_VTR'
+        return 'Running: UCRL_VTR'
 
     #def error(self):
     #    self.true_p = []
@@ -447,7 +447,7 @@ class UCBVI(object):
         return sums
 
     def name(self):
-        return 'UCBVI'
+        return 'Running: UCBVI'
 
     def run(self):
         R = []
@@ -537,7 +537,7 @@ class LSVI_UCB(object):
         return max(min(x,hi),lo)
 
     def name(self):
-        return 'LSVI-UCB'
+        return 'Running: LSVI-UCB'
 
     def run(self):
         R = 0
@@ -563,7 +563,7 @@ class Optimal_Agent(object):
         self.K = K
 
     def name(self):
-        return 'Optimal_Policy'
+        return 'Running: Optimal_Policy'
 
     def run(self):
         R = 0
@@ -659,20 +659,20 @@ class UC_MatrixRL(object):
         '''
         Q = {(h,s,a): 0.0 for h in range(self.env.epLen) for s in self.env.states.keys() \
                    for a in range(self.env.nAction)}
-        V = np.zeros((env.epLen+1,env.nState))
+        V = {h: np.zeros(self.env.nState) for h in range(self.env.epLen + 1)}
         for h in range(self.env.epLen-1,-1,-1):
             for s in self.env.states.keys():
                 for a in range(self.env.nAction):
-                    r = env.R[s,a][0]
+                    r = self.env.R[s,a][0]
 
                     value = np.dot(np.matmul(np.dot(self.features_state_action[s,a].T,self.M),\
-                            self.features_next_state_mat),V[h+1,:])
+                            self.features_next_state_mat),V[h+1])
 
                     bonus = 2 * self.C_psi * np.sqrt(self.Beta(n)) * np.dot(\
                             np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a])
 
-                    Q[h,s,a] = self.proj(r+value+bonus,0,env.epLen)
-                V[h,s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
+                    Q[h,s,a] = self.proj(r+value+bonus,0,self.env.epLen)
+                V[h][s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
         self.Q = Q.copy()
 
     def Beta(self,n):
@@ -698,7 +698,7 @@ class UC_MatrixRL(object):
         self.M = np.matmul(np.matmul(self.Ainv,self.sums),self.Kinv)
 
     def name(self):
-        return 'UC_MatrixRL'
+        return 'Running: UC_MatrixRL'
 
     def run(self):
         R = 0
