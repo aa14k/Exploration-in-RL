@@ -31,14 +31,14 @@ print(agent.name())
 R_UC_MatrixRL = agent.run()
 plt.plot(R_UC_MatrixRL, label = 'UC_MatrixRL')
 
-select_bonus = 1
+select_bonus = 1 #select_bonus = 1, means use old bonus from bandit's book.
 random_explore = False
 agent = UCRL_VTR(make_riverSwim(epLen,nState),K,random_explore,select_bonus)
 print(agent.name() + ' using old bonus')
 R_UCRL_VTR_old_bonus = agent.run()
 plt.plot(R_UCRL_VTR_old_bonus, label = 'UCRL_VTR_Old_Bonus')
 
-select_bonus = 2
+select_bonus = 2 #select_bonus = 2, means use new bonus from Mengdi's MatrixRL paper.
 random_explore = False
 agent = UCRL_VTR(make_riverSwim(epLen,nState),K,random_explore,select_bonus)
 print(agent.name() + ' using new bonus')
