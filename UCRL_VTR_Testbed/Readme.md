@@ -11,4 +11,7 @@ agents.py - this file contains LSVI_UCB, UC_MatrixRL, RLSVI, PSRL, UCRL_VTR, and
 
 environments.py - this file contains the DeepSea and RiverSwim environments.
 
+Plot_Cum_Reward.png - Contains a plot fo UC_MatrixRL, RLSVI, UCRL_VTR, and a Policy which only goes right. The environment 
+is riverswim. epLen = 20 and nState = 4
+
 
