@@ -2,7 +2,7 @@
 
 import numpy as np
 import random
-from tqdm import tqdm
+#from tqdm import tqdm
 import copy
 import matplotlib.pyplot as plt
 
