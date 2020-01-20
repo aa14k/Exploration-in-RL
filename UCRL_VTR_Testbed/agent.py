@@ -5,7 +5,7 @@ import numpy as np
 import random
 import copy
 from scipy.stats import bernoulli
-from tqdm import tqdm
+#from tqdm import tqdm
 
 from environments import make_riverSwim, deep_sea, TabularMDP
 
@@ -62,7 +62,7 @@ class RLSVI(object):
     def run(self):
         R = []
         reward = 0.0
-        for l in tqdm(range(0,self.K)):
+        for l in (range(0,self.K)):
             #if (l + 1 % 150) == 0:
             #    agent.buffer_reset()
             self.env.reset()
@@ -356,7 +356,7 @@ class UCRL_VTR(object):
     def run(self):
         R = []
         reward = 0.0
-        for k in tqdm(range(1,self.K+1)):
+        for k in (range(1,self.K+1)):
             self.env.reset()
             done = 0
             while done != 1:
@@ -476,7 +476,7 @@ class UCBVI(object):
     def run(self):
         R = []
         reward = 0.0
-        for k in tqdm(range(K)):
+        for k in (range(K)):
             env.reset()
             done = 0
             while done != 1:
@@ -566,7 +566,7 @@ class LSVI_UCB(object):
     def run(self):
         R = 0
         Rvec = []
-        for k in tqdm(range(1,self.K+1)):
+        for k in (range(1,self.K+1)):
             self.env.reset()
             done = 0
             while done != 1:
@@ -729,7 +729,7 @@ class UC_MatrixRL(object):
     def run(self):
         R = 0
         Rvec = []
-        for n in tqdm(range(1,self.N+1)):
+        for n in (range(1,self.N+1)):
             self.env.reset()
             done = 0
             self.compute_Q(n)
