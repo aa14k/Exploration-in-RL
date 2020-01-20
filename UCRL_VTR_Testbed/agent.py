@@ -142,7 +142,7 @@ class UCRL_VTR(object):
     Value-Target Regression
     The algorithm assumes that the rewards are in the [0,1] interval.
     '''
-    def __init__(self,env,K,random_explore):
+    def __init__(self,env,K,random_explore,select_bonus):
         self.env = env
         self.K = K
         # A unit test that randomly explores for a period of time then learns from that experience
@@ -153,6 +153,8 @@ class UCRL_VTR(object):
             self.random_explore = 10
         else:
             self.random_explore = self.K
+        # For using either Bandit Books Bonus or MatrixRL bonus.
+        self.select_bonus = select_bonus
         # Here the dimension (self.d) for the Tabular setting is |S x A x S| as stated in Appendix B
         self.d = self.env.nState * self.env.nAction * self.env.nState
         # In the tabular setting the basis models is just the dxd identity matrix, see Appendix B
@@ -187,6 +189,17 @@ class UCRL_VTR(object):
         self.m_2 = 5.5
 #         #Initialize the predicted value of the basis models, see equation 3
 #         self.X = np.zeros((env.epLen,self.d))
+        #See Assumptions 2,2' and Theorem 1, this equals 1 in the tabular case
+        self.C_phi = 1.0
+        # See Assumption 2'(Stronger Feature Regularity), and consider the case when v_1 = v_2 = ....
+        self.C_psi = np.sqrt(env.nState)
+        # See Theorem 1
+        self.C_M = 1.0
+        # See Theorem 1
+        self.C_psi_ = 1.0
+        # This value scales our confidence interval, must be > 0
+        self.c = 0.1
+        self.d1 = env.nState * env.nAction
 
 
 
@@ -289,7 +302,7 @@ class UCRL_VTR(object):
             h - the current timestep within the episode
         '''
         #step 8
-        if k > self.K /self.random_explore:
+        if k > (self.K / self.random_explore - 1):
             #print (max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)])))
             return self.env.argmax(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
         else:
@@ -322,12 +335,23 @@ class UCRL_VTR(object):
         #    *np.log(pow(k+1,2)*env.epLen/self.delta)*np.log(pow(k+1,2)*env.epLen/self.delta)
 
         #Confidence bound from Chapter 20 of the Bandit Algorithms book, see Theorem 20.5.
-        first = np.sqrt(self.lam)*self.m_2
-        (sign, logdet) = np.linalg.slogdet(self.M)
-        #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
-        det = sign * logdet
-        second = np.sqrt(2*np.log(1/self.delta) + np.log(k) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d)))
-        return first + second
+        if self.select_bonus == 1:
+            first = np.sqrt(self.lam)*self.m_2
+            (sign, logdet) = np.linalg.slogdet(self.M)
+            #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
+            det = sign * logdet
+            second = np.sqrt(2*np.log(1/self.delta) + np.log(k) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d)))
+            return first + second
+        elif self.select_bonus == 2:
+            first = self.c*(self.C_M * self.C_psi_ ** 2)
+            second = np.log(self.K*self.env.epLen*self.C_phi)*self.d1
+            #The line of code below for an anytime version
+            #second = np.log(k*self.env.epLen*self.C_phi)*self.d1
+            return np.sqrt(first*second)
+        else:
+            print('self.select_bonus must be either 1 or 2')
+
+
 
     def run(self):
         R = []
@@ -614,7 +638,7 @@ class UC_MatrixRL(object):
         # See Theorem 1
         self.C_psi_ = 1.0
         # This value scales our confidence interval, must be > 0
-        self.c = 1.0
+        self.c = 0.1
         # For use in updating M_n, see Step 13 and Eqn (2)
         self.sums = np.zeros((self.d1,self.d2))
         #Creates K_psi, see Section 3.1: Estimating the core matrix.
@@ -680,8 +704,10 @@ class UC_MatrixRL(object):
         A function that computes Beta under the Assumption Theorem 2 holds, see equation 8
         '''
         first = self.c*(self.C_M * self.C_psi_ ** 2)
-        second = np.log(n*self.env.epLen*self.C_phi)*self.d1
-        return first * second
+        second = np.log(self.N*self.env.epLen*self.C_phi)*self.d1
+        #The line of code below for an anytime version
+        #second = np.log(n*self.env.epLen*self.C_phi)*self.d1
+        return first*second
 
     def update_core_matrix(self,s,a,s_):
         '''
