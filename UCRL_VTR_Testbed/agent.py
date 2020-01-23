@@ -696,7 +696,7 @@ class UC_MatrixRL(object):
                     value = np.dot(np.matmul(np.dot(self.features_state_action[s,a].T,self.M),\
                             self.features_next_state_mat),V[h+1])
 
-                    bonus = self.Beta(n) * np.dot(\
+                    bonus = 2 * self.C_psi * h * self.Beta(n) * np.dot(\
                            np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a])
                     # Computing the optimistic Q-values as according to Eqn (8).
                     Q[h,s,a] = self.proj(r+value+bonus,0,self.env.epLen)
@@ -732,7 +732,7 @@ class UC_MatrixRL(object):
 
         #Confidence bound from Chapter 20 of the Bandit Algorithms book, see Theorem 20.5.
         first = np.sqrt(self.lam)*np.sqrt(self.C_M*self.d1)
-        (sign, logdet) = np.linalg.slogdet(self.A)
+        (sign, logdet) = np.linalg.slogdet(scipy.linalg.sqrtm(self.A))
         #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
         det = sign * logdet
         second = np.sqrt(2*np.log(1/self.delta) + np.log(n) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d1)))
