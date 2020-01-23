@@ -6,6 +6,7 @@ import random
 import copy
 from scipy.stats import bernoulli
 from tqdm import tqdm
+import scipy
 
 from environments import make_riverSwim, deep_sea, TabularMDP
 
