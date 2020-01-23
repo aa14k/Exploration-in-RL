@@ -624,7 +624,7 @@ class UC_MatrixRL(object):
         # Initialize our Q matrix
         self.Q = {(h,s,a): 0.0 for h in range(self.env.epLen) for s in self.env.states.keys() \
                    for a in range(self.env.nAction)}
-        #Step 4
+        #Step 4, this step maybe unnecessary since we are using Sherman-Morrison
         self.A = np.identity(self.d1)
         #For use in the Sherman-Morrison Update
         self.Ainv = np.linalg.inv(self.A)
@@ -639,15 +639,17 @@ class UC_MatrixRL(object):
         # See Theorem 1
         self.C_psi_ = 1.0
         # This value scales our confidence interval, must be > 0
-        self.c = 0.1
+        self.c = 1.0
         # For use in updating M_n, see Step 13 and Eqn (2)
         self.sums = np.zeros((self.d1,self.d2))
         #Creates K_psi, see Section 3.1: Estimating the core matrix.
         self.createK()
+        self.lam = 1.0
+        self.delta = 1/self.N
 
     def createK(self):
         '''
-        A function that creates K_psi and (K_psi)^-1 for use in the Sherman-Morrison Update
+        A function that creates K_psi and (K_psi)^-1 in computing M_n
         See Section 3.1: Estimating the core matrix
         '''
         self.K = np.zeros((self.d2,self.d2))
@@ -688,40 +690,68 @@ class UC_MatrixRL(object):
         for h in range(self.env.epLen-1,-1,-1):
             for s in self.env.states.keys():
                 for a in range(self.env.nAction):
+                    #For use in computing Q, like in UCRL_VTR we have access to the true reward function.
                     r = self.env.R[s,a][0]
 
                     value = np.dot(np.matmul(np.dot(self.features_state_action[s,a].T,self.M),\
                             self.features_next_state_mat),V[h+1])
 
-                    bonus = 2 * self.C_psi * env.epLen * np.sqrt(self.Beta(n)) * np.dot(\
-                            np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a])
-
+                    bonus = self.Beta(n) * np.dot(\
+                           np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a])
+                    # Computing the optimistic Q-values as according to Eqn (8).
                     Q[h,s,a] = self.proj(r+value+bonus,0,self.env.epLen)
                 V[h][s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
         self.Q = Q.copy()
 
-    def Beta(self,n):
-        '''
-        A function that computes Beta under the Assumption Theorem 2 holds, see equation 8
-        '''
+    '''
+    def Beta_2(self,n):
+
+        A function that computes Beta under the assumption that Theorem 2 holds, see equation 8
+        with the multiplicitive H term included this is no longer an optimal bonus.
+
         first = self.c*(self.C_M * self.C_psi_ ** 2)
         second = np.log(self.N*self.env.epLen*self.C_phi)*self.d1
-        #The line of code below for an anytime version
+        #The line of code below for an 'anytime' version - there are no theoretical garanuntees for this statement.
         #second = np.log(n*self.env.epLen*self.C_phi)*self.d1
-        return first*second
+        return first * second
+    '''
+
+    def Beta(self,n):
+        '''
+        A function that return Beta_k according to Theorem 20.5 in Bandits book
+        Also, if you return np.sqrt(first + second) instead of first + second then
+        you get higher cumlative reward. However, in Theorem 19.2, Beta_n is already
+        under the square root.
+        '''
+        #Step 3
+        #Bonus as according to step 3
+        '''
+        return np.sqrt(16*pow(self.m_2,2)*pow(env.epLen,2)*self.d*np.log(1+env.epLen*k) \
+            *np.log(pow(k+1,2)*env.epLen/self.delta)*np.log(pow(k+1,2)*env.epLen/self.delta))
+        '''
+
+        #Confidence bound from Chapter 20 of the Bandit Algorithms book, see Theorem 20.5.
+        first = np.sqrt(self.lam)*np.sqrt(self.C_M*self.d1)
+        (sign, logdet) = np.linalg.slogdet(self.A)
+        #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
+        det = sign * logdet
+        second = np.sqrt(2*np.log(1/self.delta) + np.log(n) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d1)))
+        #print(det)
+        return first + second
 
     def update_core_matrix(self,s,a,s_):
         '''
         A function that performs step 12 and 13.
         '''
-        self.A = self.A + np.outer(self.features_state_action[s,a],self.features_state_action[s,a])
-
+        #While the line below is in Algorithm 1, when using the Sherman Morrison update it is not needed.
+        #self.A = self.A + np.outer(self.features_state_action[s,a],self.features_state_action[s,a])
+        #Sherman Morrison Update (Rich's book Eqn 9.22)
         self.Ainv = self.Ainv - np.dot((np.outer(np.dot(self.Ainv,self.features_state_action[s,a]) \
                  ,self.features_state_action[s,a])),self.Ainv) / \
                     (1 + np.dot(np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a]))
-
+        #The summation step of Eqn (2)
         self.sums = self.sums + np.outer(self.features_state_action[s,a],self.features_next_state[s_])
-
+        #Here (K_psi)^-1 was pre-computed during the initialization. See Eqn (2)
         self.M = np.matmul(np.matmul(self.Ainv,self.sums),self.Kinv)
 
     def name(self):
