@@ -5,7 +5,7 @@ import numpy as np
 import random
 import copy
 from scipy.stats import bernoulli
-#from tqdm import tqdm
+from tqdm import tqdm
 
 from environments import make_riverSwim, deep_sea, TabularMDP
 
@@ -62,7 +62,7 @@ class RLSVI(object):
     def run(self):
         R = []
         reward = 0.0
-        for l in (range(0,self.K)):
+        for l in tqdm(range(0,self.K)):
             #if (l + 1 % 150) == 0:
             #    agent.buffer_reset()
             self.env.reset()
@@ -142,7 +142,7 @@ class UCRL_VTR(object):
     Value-Target Regression
     The algorithm assumes that the rewards are in the [0,1] interval.
     '''
-    def __init__(self,env,K,random_explore,select_bonus):
+    def __init__(self,env,K,random_explore,informationBonus):
         self.env = env
         self.K = K
         # A unit test that randomly explores for a period of time then learns from that experience
@@ -154,7 +154,7 @@ class UCRL_VTR(object):
         else:
             self.random_explore = self.K
         # For using either Bandit Books Bonus or MatrixRL bonus.
-        self.select_bonus = select_bonus
+        self.informationBonus = informationBonus
         # Here the dimension (self.d) for the Tabular setting is |S x A x S| as stated in Appendix B
         self.d = self.env.nState * self.env.nAction * self.env.nState
         # In the tabular setting the basis models is just the dxd identity matrix, see Appendix B
@@ -239,7 +239,7 @@ class UCRL_VTR(object):
         # Suggested code:
         X = self.feature_vector(s,a,h)
         self.Q[h,s,a] = self.proj(self.env.R[(s,a)][0] + np.dot(X,self.theta) + self.Beta(k) \
-            * np.sqrt(np.dot(np.dot(np.transpose(X),self.Minv),X)), 0, self.env.epLen )
+            * np.sqrt(np.dot(np.dot(np.transpose(X),self.Minv),X)), 0, self.env.epLen + self.informationBonus) #Does this value have to change???
         self.V[h,s] = max(np.array([self.Q[(h,s,a)] for a in range(self.env.nAction)]))
 
     def update_Qend(self,k):
@@ -335,13 +335,13 @@ class UCRL_VTR(object):
         #    *np.log(pow(k+1,2)*env.epLen/self.delta)*np.log(pow(k+1,2)*env.epLen/self.delta)
 
         #Confidence bound from Chapter 20 of the Bandit Algorithms book, see Theorem 20.5.
-        if self.select_bonus == 1:
-            first = np.sqrt(self.lam)*self.m_2
-            (sign, logdet) = np.linalg.slogdet(self.M)
-            #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
-            det = sign * logdet
-            second = np.sqrt(2*np.log(1/self.delta) + np.log(k) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d)))
-            return first + second
+        first = np.sqrt(self.lam)*self.m_2
+        (sign, logdet) = np.linalg.slogdet(self.M)
+        #second = np.sqrt(2*np.log(1/self.delta) + self.d*np.log((self.d*self.lam + k*self.L*self.L)/(self.d*self.lam)))
+        det = sign * logdet
+        second = np.sqrt(2*np.log(1/self.delta) + np.log(k) + min(det,pow(10,10)) - np.log(pow(self.lam,self.d)))
+        return first + second
+        '''
         elif self.select_bonus == 2:
             first = self.c*(self.C_M * self.C_psi_ ** 2)
             second = np.log(self.K*self.env.epLen*self.C_phi)*self.d1
@@ -350,13 +350,14 @@ class UCRL_VTR(object):
             return np.sqrt(first*second)
         else:
             print('self.select_bonus must be either 1 or 2')
+        '''
 
 
 
     def run(self):
         R = []
         reward = 0.0
-        for k in (range(1,self.K+1)):
+        for k in tqdm(range(1,self.K+1)):
             self.env.reset()
             done = 0
             while done != 1:
@@ -476,7 +477,7 @@ class UCBVI(object):
     def run(self):
         R = []
         reward = 0.0
-        for k in (range(K)):
+        for k in tqdm(range(K)):
             env.reset()
             done = 0
             while done != 1:
@@ -566,7 +567,7 @@ class LSVI_UCB(object):
     def run(self):
         R = 0
         Rvec = []
-        for k in (range(1,self.K+1)):
+        for k in tqdm(range(1,self.K+1)):
             self.env.reset()
             done = 0
             while done != 1:
@@ -692,7 +693,7 @@ class UC_MatrixRL(object):
                     value = np.dot(np.matmul(np.dot(self.features_state_action[s,a].T,self.M),\
                             self.features_next_state_mat),V[h+1])
 
-                    bonus = 2 * self.C_psi * np.sqrt(self.Beta(n)) * np.dot(\
+                    bonus = 2 * self.C_psi * env.epLen * np.sqrt(self.Beta(n)) * np.dot(\
                             np.dot(self.features_state_action[s,a],self.Ainv),self.features_state_action[s,a])
 
                     Q[h,s,a] = self.proj(r+value+bonus,0,self.env.epLen)
@@ -729,7 +730,7 @@ class UC_MatrixRL(object):
     def run(self):
         R = 0
         Rvec = []
-        for n in (range(1,self.N+1)):
+        for n in tqdm(range(1,self.N+1)):
             self.env.reset()
             done = 0
             self.compute_Q(n)
