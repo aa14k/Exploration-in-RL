@@ -204,3 +204,45 @@ class deep_sea(Environment):
 
     def argmax(self,b):
         return np.random.choice(np.where(b == b.max())[0])
+    
+
+def make_MDP(epLen=2,nBottom = 24):
+'''
+Makes the benchmark RiverSwim MDP.
+Args:
+    NULL - works for default implementation
+Returns:
+    riverSwim - Tabular MDP environment '''
+nState = nBottom + 3
+nAction = 2
+R_true = {}
+P_true = {}
+states = {}
+for s in range(nState):
+    states[(s)] = 0.0
+    for a in range(nAction):
+        R_true[s, a] = (0, 0)
+        P_true[s, a] = np.zeros(nState)
+
+# Rewards
+R_true[1,0] = (-1, 0)
+R_true[1,1] = (-1, 0)
+R_true[2,0] = (1, 0)
+R_true[2,1] = (1, 0)
+n = int(nBottom/4)
+#Transitions 
+P_true[0,0][1] = 1.0
+P_true[0,1][2] = 1.0
+P_true[1,0][3:3+n] = 1/n
+P_true[1,1][3+n:3+2*n] = 1/n
+P_true[2,0][3+2*n:3+3*n] = 1/n
+P_true[2,1][3+3*n:3+4*n] = 1/n
+
+
+MDP = TabularMDP(nState, nAction, epLen)
+MDP.R = R_true
+MDP.P = P_true
+MDP.states = states
+MDP.reset()
+
+return MDP
