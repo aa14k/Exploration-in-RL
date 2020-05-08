@@ -1,0 +1,1 @@
+This folder contains the code for UCRL-VTR, UC-MatrixRL, EGRL-VTR, and EG-Freq as well as the RiverSwim and DeepTree environments used in the VTR paper. Also in this folder a script to recreate the plots used in our VTR paper.
