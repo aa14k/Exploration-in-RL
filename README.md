@@ -1,4 +1,6 @@
 # Exploration-in-RL
+As of 10/15/21, IDRL-VTR, code for a prototype algorithm that combines Information Directed Sampling with Value-Targeted Regression. Based off Dongrou's wonderful COLT paper with Quanquan and Csaba and Johannes' IDS work.
+
 As of 5/15/21, OPT-LSVI-PHE was recently accepted to ICML2021!
 
 As of 3/25/21, added a new folder called OPT-LSVI-PHE. This algorithm is an optimistic variant of PH-LSVI. This algorithm solves sparse mountain car very well. The code base was taken from the University of Alberta's Reinforcement Learning Coursera course, specially module 3 week 3. This algorithm can be thought of as an optimistic extension of RLSVI (Osbant et al, 2014). Interstingly, RLSVI (M=1) doesn't solve sparse mountain car but our algorithm (with M>1) does? 
