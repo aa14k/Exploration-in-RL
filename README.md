@@ -1,7 +1,7 @@
 # Exploration-in-RL
 As of 10/15/21, IDRL-VTR, code for a prototype algorithm that combines Information Directed Sampling with Value-Targeted Regression. Based off Dongrou's wonderful COLT paper with Quanquan and Csaba and Johannes' IDS work.
 
-As of 5/15/21, [OPT-LSVI-PHE] (https://arxiv.org/abs/2106.07841) was recently accepted to ICML2021!
+As of 5/15/21, [OPT-LSVI-PHE](https://arxiv.org/abs/2106.07841) was recently accepted to ICML2021!
 
 As of 3/25/21, added a new folder called OPT-LSVI-PHE. This algorithm is an optimistic variant of PH-LSVI. This algorithm solves sparse mountain car very well. The code base was taken from the University of Alberta's Reinforcement Learning Coursera course, specially module 3 week 3. This algorithm can be thought of as an optimistic extension of RLSVI (Osbant et al, 2014). Interstingly, RLSVI (M=1) doesn't solve sparse mountain car but our algorithm (with M>1) does? 
 As of 11/14/20, new code for Perturbed History (PH) Exploration for RL. This code compares PH-LSVI with RLSVI and LSVI-UCB on the episodic RiverSwim environment. Also some code for a paper that claims they have a TS algorithm that achieves same regret as UCB (whether this regret is correct is another question). Finally a new folder to test out exploration heuristics for RL, we propose a new method called BeyondGreedy exploration based on the probability matching of BeyondUCB (Foster and Raklin, 2020). 
