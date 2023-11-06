@@ -1,4 +1,6 @@
 # Exploration-in-RL
+As of 11/06/23, EVILL, code for a new randomized algorithm that adds a randomized "regularizer" to the log-likelihood function in order to garuantee sample efficient learning in generalized linear bandits (and beyond). 
+
 As of 10/15/21, IDRL-VTR, code for a prototype algorithm that combines Information Directed Sampling with Value-Targeted Regression. Based off Dongrou's wonderful COLT paper with Quanquan and Csaba and Johannes' IDS work.
 
 As of 5/15/21, [OPT-LSVI-PHE](https://arxiv.org/abs/2106.07841) was recently accepted to ICML2021!
