@@ -13,4 +13,4 @@ As of 5/8/20, new code for UC-MatrixRL as been updated to the VTR_Paper_Code/Fix
 As of 2/20/20, only PSRL, RLSVI, UCRL_VTR, and UC_MatrixRL have been properly debugged and optimized to run on the riverswim environment. The other algorithms should work, though I have not spent as much time on them as the others.
 
 
-PS: Feel free to email me any questions, suggestions, feedback, thoughts, etc..... (aayoub@ualberta.ca). 
+PS: Feel free to email me any issues, questions, suggestions, feedback, thoughts, etc..... (aayoub@ualberta.ca). 
